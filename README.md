@@ -53,4 +53,4 @@ datetime, channel name, channel username, comment, link
 Pull requests are welcome.
 
 ## License
-[GPL-3.0](https://github.com/svtcore/telegram-user-comments/blob/main/LICENSE "GPL-3.0")
+[MIT](https://github.com/svtcore/telegram-user-comments/blob/main/LICENSE "MIT")
