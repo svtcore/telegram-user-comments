@@ -1,6 +1,6 @@
 # Telegram User Comments
 
-Get all user comments under posts (discussion) in certain channel(s) and export in file
+Parsing all user comments under posts (discussion) in certain channel(s) and export in file
 
 Note: Count only comments whose defined like reply to post
 
