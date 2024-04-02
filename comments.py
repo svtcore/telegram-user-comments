@@ -76,7 +76,7 @@ class Comments:
     def getReplies(self, channel_id, channel_message_id, offset):
         try:
             channel_peer = self.app.resolve_peer(channel_id)
-            result = self.app.send(
+            result = self.app.invoke(
                 functions.messages.GetReplies(
                     peer=channel_peer,
                     msg_id=channel_message_id,
@@ -90,7 +90,7 @@ class Comments:
             )
             return result
         except NameError:
-            return NameError
+            print(NameError)
 
     '''
     Iterate message part, check if comment from target user then concatenate it with other comment data
@@ -102,11 +102,16 @@ class Comments:
             for j in range(0, len(result.messages)):
                 # convert unix date to str format
                 str_date = datetime.fromtimestamp(result.messages[j].date).strftime('%Y-%m-%d %H:%M:%S')
-                # check if comment from target user
-                if self.TARGET_USER_ID == result.messages[j].from_id.user_id:
-                    if str(result.messages[j].message).strip() != "":
-                        result_text = (result_text + str(str_date) + ',' + str(channel_title) + ',' + str(channel_username) + ',' + '"'+str(result.messages[j].message).strip(
-                        ) + '"'+','+'https://t.me/' + str(channel_username) + '/' + str(channel_message_id) + '?comment=' + str(result.messages[j].id)).strip() + '\n'
+                #check if message sent from user
+                if hasattr(result.messages[j].from_id, 'user_id'):
+                    # check if comment from target user
+                    if self.TARGET_USER_ID == result.messages[j].from_id.user_id:
+                        if str(result.messages[j].message).strip() != "":
+                            result_text = (result_text + str(str_date) + ',' + str(channel_title) + ',' + str(channel_username) + ',' + '"'+str(result.messages[j].message).strip(
+                            ) + '"'+','+'https://t.me/' + str(channel_username) + '/' + str(channel_message_id) + '?comment=' + str(result.messages[j].id)).strip() + '\n'
+                else:
+                    #case when message sent from channel
+                    pass
             if result_text.strip() == "":
                 return None
             else:
@@ -121,14 +126,14 @@ class Comments:
             self.loadChannels()
             self.auth()
             for channel in self.channels:
-                target_message_history = self.app.iter_history(
-                    channel, limit=self.POSTS_LIMIT)
+                target_message_history = list(self.app.get_chat_history(
+                    channel, limit=self.POSTS_LIMIT))
                 for i in range(0, len(target_message_history)):
                     try:
                         channel_id = target_message_history[i].sender_chat.id
                         channel_title = target_message_history[i].sender_chat.title
                         channel_username = target_message_history[i].sender_chat.username
-                        channel_message_id = target_message_history[i].message_id
+                        channel_message_id = target_message_history[i].id
                         print("Processing " + channel_username + "/" + str(channel_message_id))
                         # Getting data about comments in post
                         result = self.getReplies(channel_id, channel_message_id, 0)
@@ -141,7 +146,7 @@ class Comments:
                             result_text = self.formatResultText(result, channel_title, channel_username, channel_message_id)
                             if (result_text != None):
                                 self.writeToFile(result_text)
-                            time.sleep(1)
+                            time.sleep(2)
                     except BadRequest as e:  # if post deleted
                         time.sleep(0.5)
                         pass
