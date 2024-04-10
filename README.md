@@ -17,7 +17,7 @@ pip install -r requirements.txt
 
   ```API_HASH``` - Telegram app credential from step 1
 
-  ``TARGET_USER_ID`` - Telegram user id whose comments need to be found 
+  ``TARGET_USER_ID`` - Telegram user/channel ID whose comments need to be found 
 
   ```POSTS_LIMIT``` - Count of posts which will process. The number define the last **N** posts
 

@@ -100,18 +100,26 @@ class Comments:
         try:
             result_text = ""
             for j in range(0, len(result.messages)):
+                found = False
                 # convert unix date to str format
-                str_date = datetime.fromtimestamp(result.messages[j].date).strftime('%Y-%m-%d %H:%M:%S')
+                str_date = datetime.fromtimestamp(result.messages[j].date).strftime('%d-%m-%Y - %H:%M:%S')
                 #check if message sent from user
                 if hasattr(result.messages[j].from_id, 'user_id'):
                     # check if comment from target user
-                    if self.TARGET_USER_ID == result.messages[j].from_id.user_id:
-                        if str(result.messages[j].message).strip() != "":
-                            result_text = (result_text + str(str_date) + ',' + str(channel_title) + ',' + str(channel_username) + ',' + '"'+str(result.messages[j].message).strip(
-                            ) + '"'+','+'https://t.me/' + str(channel_username) + '/' + str(channel_message_id) + '?comment=' + str(result.messages[j].id)).strip() + '\n'
-                else:
-                    #case when message sent from channel
-                    pass
+                    if str(self.TARGET_USER_ID) == str(result.messages[j].from_id.user_id):
+                        found = True
+                #case when message sent from channel
+                elif hasattr(result.messages[j].from_id, 'channel_id'):
+                    if str(self.TARGET_USER_ID) == str(result.messages[j].from_id.channel_id):
+                        found = True
+                if (found):
+                    if str(result.messages[j].message).strip() != "":
+                        #replace \n to avoid crashing formatting on the export file
+                        user_message = (result.messages[j].message).replace('\n', '.')
+                        #double quotes crashing formatting on the export file so replace it to another type
+                        user_message = (result.messages[j].message).replace('"', '`')
+                        result_text = (result_text + str(str_date) + ',' + str(channel_title) + ',' + str(channel_username) + ',' + '"'+str(user_message).strip(
+                        ) + '"'+','+'https://t.me/' + str(channel_username) + '/' + str(channel_message_id) + '?comment=' + str(result.messages[j].id)).strip() + '\n'
             if result_text.strip() == "":
                 return None
             else:
