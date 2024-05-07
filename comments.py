@@ -8,6 +8,7 @@ from pyrogram.errors import BadRequest, FloodWait
 from datetime import datetime
 import codecs
 import math
+import os
 
 
 class Comments:
@@ -64,7 +65,7 @@ class Comments:
     '''
     def writeToFile(self, data):
         try:
-            file = codecs.open("export.csv", "a", encoding='utf-8')
+            file = codecs.open("export_" + str(self.TARGET_USER_ID) + ".csv", "a", encoding='utf-8')
             file.write(data)
             file.close()
         except NameError:
@@ -142,7 +143,7 @@ class Comments:
                         channel_title = target_message_history[i].sender_chat.title
                         channel_username = target_message_history[i].sender_chat.username
                         channel_message_id = target_message_history[i].id
-                        print("Processing " + channel_username + "/" + str(channel_message_id))
+                        print("Processing " + "[" + str(int(i + 1)) + "/" + str(len(target_message_history)) + "] " + channel_username + "/" + str(channel_message_id))
                         # Getting data about comments in post
                         result = self.getReplies(channel_id, channel_message_id, 0)
                         offset = 0
@@ -167,6 +168,8 @@ class Comments:
                     except FloodWait as e:
                         print("Too fast. Sleeping 60 sec")
                         time.sleep(60)
+                    except FileNotFoundError as e:
+                        pass
                     except NameError as e:
                         print(NameError)
             self.logout()
