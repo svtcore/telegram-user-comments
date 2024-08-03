@@ -23,12 +23,11 @@ pip install -r requirements.txt
 
 ### 4. Open **channels.txt** and add channel(s) to process 
 
-  Only channel username (ex. https:/t.me/durov, username is **durov**)
+  Support both types of links for public and private channels, at the same time account must be a member of it
 
   ```
-  channel_username_1
-  channel_username_2
-  channel_username_3
+https://t.me/+ABCDEFGH
+https://t.me/durov
   ```
 
 ## Run
