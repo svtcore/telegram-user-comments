@@ -1,3 +1,2 @@
-channel_username_1
-channel_username_2
-channel_username_3
+https://t.me/+ABCDEFGH
+https://t.me/durov
