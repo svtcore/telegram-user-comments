@@ -76,9 +76,13 @@ class Comments:
         media = message.media
         if media is None:
             return "[Empty]"
-        if isinstance(media, raw_types.MessageMediaPhoto):
+        
+        type_name = type(media).__name__
+        
+        if type_name == "MessageMediaPhoto":
             return "[Image]"
-        if isinstance(media, raw_types.MessageMediaDocument):
+        
+        if type_name == "MessageMediaDocument":
             doc = media.document
             attrs = {type(a).__name__: a for a in getattr(doc, 'attributes', [])}
             if 'DocumentAttributeSticker' in attrs:
@@ -95,28 +99,41 @@ class Comments:
             if mime.startswith('image/'):
                 return "[Image]"
             return f"[File: {mime}]" if mime else "[Document]"
-        if isinstance(media, raw_types.MessageMediaWebPage):
+        
+        if type_name == "MessageMediaWebPage":
             webpage = media.webpage
             url = getattr(webpage, 'url', None)
             return url if url else "[WebPage]"
-        if isinstance(media, raw_types.MessageMediaGeo):
+        
+        if type_name == "MessageMediaGeo":
             geo = media.geo
             if hasattr(geo, 'lat') and hasattr(geo, 'long'):
                 return f"https://maps.google.com/?q={geo.lat},{geo.long}"
             return "[Location]"
-        if isinstance(media, raw_types.MessageMediaGeoLive):
+        
+        if type_name == "MessageMediaGeoLive":
             return "[LiveLocation]"
-        if isinstance(media, raw_types.MessageMediaContact):
+        
+        if type_name == "MessageMediaContact":
             return f"[Contact: {media.first_name} {media.last_name}]"
-        if isinstance(media, raw_types.MessageMediaPoll):
+        
+        if type_name == "MessageMediaPoll":
             return "[Poll]"
-        if isinstance(media, raw_types.MessageMediaDice):
+        
+        if type_name == "MessageMediaDice":
             return f"[Dice: {media.emoticon}]"
-        if isinstance(media, raw_types.MessageMediaStory):
-            return "[Story]"
-        if isinstance(media, raw_types.MessageMediaUnsupported):
+        
+        if type_name == "MessageMediaUnsupported":
             return "[Unsupported]"
-        return f"[{type(media).__name__}]"
+        
+        # Fallback for types that may not be in this Pyrogram version
+        known_types = {
+            "MessageMediaStory": "[Story]",
+            "MessageMediaGiveaway": "[Giveaway]",
+            "MessageMediaGiveawayResults": "[GiveawayResults]",
+            "MessageMediaInvoice": "[Invoice]",
+        }
+        return known_types.get(type_name, f"[{type_name}]")
 
     '''
     Get data about comments and related with it users
