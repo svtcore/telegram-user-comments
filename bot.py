@@ -52,7 +52,10 @@ def main():
     target_user_id = resolve_target_user(target_user_input)
 
     comments = Comments(API_ID, API_HASH, target_user_id, posts_limit)
-    comments.get_comments()
+    try:
+        comments.get_comments()
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
 
 
 if __name__ == "__main__":
