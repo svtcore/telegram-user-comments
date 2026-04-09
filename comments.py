@@ -1,6 +1,6 @@
 import datetime
 from pyrogram import Client
-from pyrogram.raw import functions
+from pyrogram.raw import functions, types as raw_types
 import time
 import random
 from pyrogram.errors import BadRequest, FloodWait
@@ -70,6 +70,55 @@ class Comments:
             print(NameError)
     
     '''
+    Detect media type and return label or link
+    '''
+    def getMediaInfo(self, message):
+        media = message.media
+        if media is None:
+            return "[Empty]"
+        if isinstance(media, raw_types.MessageMediaPhoto):
+            return "[Image]"
+        if isinstance(media, raw_types.MessageMediaDocument):
+            doc = media.document
+            attrs = {type(a).__name__: a for a in getattr(doc, 'attributes', [])}
+            if 'DocumentAttributeSticker' in attrs:
+                return "[Sticker]"
+            if 'DocumentAttributeAnimated' in attrs:
+                return "[GIF]"
+            if 'DocumentAttributeAudio' in attrs:
+                audio = attrs['DocumentAttributeAudio']
+                return "[Voice]" if getattr(audio, 'voice', False) else "[Audio]"
+            if 'DocumentAttributeVideo' in attrs:
+                video = attrs['DocumentAttributeVideo']
+                return "[VideoMessage]" if getattr(video, 'round_message', False) else "[Video]"
+            mime = getattr(doc, 'mime_type', '')
+            if mime.startswith('image/'):
+                return "[Image]"
+            return f"[File: {mime}]" if mime else "[Document]"
+        if isinstance(media, raw_types.MessageMediaWebPage):
+            webpage = media.webpage
+            url = getattr(webpage, 'url', None)
+            return url if url else "[WebPage]"
+        if isinstance(media, raw_types.MessageMediaGeo):
+            geo = media.geo
+            if hasattr(geo, 'lat') and hasattr(geo, 'long'):
+                return f"https://maps.google.com/?q={geo.lat},{geo.long}"
+            return "[Location]"
+        if isinstance(media, raw_types.MessageMediaGeoLive):
+            return "[LiveLocation]"
+        if isinstance(media, raw_types.MessageMediaContact):
+            return f"[Contact: {media.first_name} {media.last_name}]"
+        if isinstance(media, raw_types.MessageMediaPoll):
+            return "[Poll]"
+        if isinstance(media, raw_types.MessageMediaDice):
+            return f"[Dice: {media.emoticon}]"
+        if isinstance(media, raw_types.MessageMediaStory):
+            return "[Story]"
+        if isinstance(media, raw_types.MessageMediaUnsupported):
+            return "[Unsupported]"
+        return f"[{type(media).__name__}]"
+
+    '''
     Get data about comments and related with it users
     '''
     def getReplies(self, channel_id, channel_message_id, offset):
@@ -107,25 +156,24 @@ class Comments:
                     # check if comment from target user
                     if str(self.TARGET_USER_ID) == str(result.messages[j].from_id.user_id):
                         found = True
-                #case when message sent from channel
+                #case when message sent from channel or community
                 elif hasattr(result.messages[j].from_id, 'channel_id'):
-                    if str(self.TARGET_USER_ID) == str(result.messages[j].from_id.channel_id):
+                    # raw API always uses positive channel_id, normalize target too
+                    if str(abs(self.TARGET_USER_ID)) == str(result.messages[j].from_id.channel_id):
                         found = True
                 if (found):
                     if str(result.messages[j].message).strip() != "":
-                        #replace \n to avoid crashing formatting on the export file
-                        user_message = (result.messages[j].message).replace('\n', '.')
-                        #double quotes crashing formatting on the export file so replace it to another type
-                        user_message = (result.messages[j].message).replace('"', '`')
+                        user_message = result.messages[j].message
+                        user_message = user_message.replace('\n', '\\n')
+                        user_message = user_message.replace('\r', '\\r')
+                        user_message = user_message.replace('\t', '\\t')
+                        user_message = user_message.replace('"', '""')
                     else:
                         try:
-                            #other types of messsages voices, gifs, video
-                            if hasattr(result.messages[j].media, 'document'):
-                                user_message = str(result.messages[j].media.document.mime_type)
-                            else:
-                                user_message = "UNKNOWN_TYPE_OF_MESSAGE"
-                        except:
-                            print("PROBLEM_WITH_RECONGNIZING_NO_TEXT_MESSAGE")
+                            user_message = self.getMediaInfo(result.messages[j])
+                        except Exception as e:
+                            user_message = "[UNKNOWN]"
+                            print(f"Could not detect media type: {e}")
                     if (channel_private_status):
                         result_text = (result_text + str(str_date) + ',' + str(channel_title) + ',' + str(channel_link) + ',' + '"'+str(user_message).strip(
                         ) + '"'+','+'https://t.me/c/' + str(result.messages[j].peer_id.channel_id) + '/' + str(result.messages[j].id) + '?thread=' + str(result.messages[j].reply_to.reply_to_msg_id)).strip() + '\n'
