@@ -1,6 +1,4 @@
 import asyncio
-import json
-import os
 
 asyncio.set_event_loop(asyncio.new_event_loop())
 
@@ -10,35 +8,52 @@ from comments import Comments
 API_ID = 2040
 API_HASH = "b18441a1ff607e10a989891a5462e627"
 
-TARGET_USER_INPUT = input("Enter TARGET_USER_ID, @username or t.me link: ").strip()
-POSTS_LIMIT = int(input("POSTS_LIMIT: "))
 
-# Extract username from t.me link
-if "t.me/" in TARGET_USER_INPUT:
-    TARGET_USER_INPUT = TARGET_USER_INPUT.split("t.me/")[-1].split("/")[0].split("?")[0]
+def resolve_target_user(user_input):
+    """Resolve a username or t.me link to a numeric Telegram user/channel ID"""
+    # Extract username from t.me link
+    if "t.me/" in user_input:
+        user_input = user_input.split("t.me/")[-1].split("/")[0].split("?")[0]
 
-# If username provided - resolve via Pyrogram
-if not TARGET_USER_INPUT.lstrip("-").isdigit():
+    # If numeric ID provided, return directly
+    if user_input.lstrip("-").isdigit():
+        return int(user_input)
+
+    # Resolve username via Pyrogram
     from pyrogram import Client
     from pyrogram.raw.types import InputPeerUser, InputPeerChannel, InputPeerChat
-    username = TARGET_USER_INPUT.lstrip("@")
-    _tmp = Client("account", api_id=API_ID, api_hash=API_HASH)
-    _tmp.start()
-    peer = _tmp.resolve_peer(username)
-    if isinstance(peer, InputPeerUser):
-        TARGET_USER_ID = peer.user_id
-        print(f"User resolved (ID: {TARGET_USER_ID})")
-    elif isinstance(peer, InputPeerChannel):
-        TARGET_USER_ID = peer.channel_id
-        print(f"Channel/community resolved (ID: {TARGET_USER_ID})")
-    elif isinstance(peer, InputPeerChat):
-        TARGET_USER_ID = peer.chat_id
-        print(f"Group resolved (ID: {TARGET_USER_ID})")
-    else:
-        raise ValueError(f"Unknown peer type: {type(peer)}")
-    _tmp.stop()
-else:
-    TARGET_USER_ID = int(TARGET_USER_INPUT)
 
-com_object = Comments(API_ID, API_HASH, TARGET_USER_ID, POSTS_LIMIT)
-com_object.getComments()
+    username = user_input.lstrip("@")
+    app = Client("account", api_id=API_ID, api_hash=API_HASH)
+    app.start()
+    try:
+        peer = app.resolve_peer(username)
+        if isinstance(peer, InputPeerUser):
+            target_id = peer.user_id
+            print(f"User resolved (ID: {target_id})")
+        elif isinstance(peer, InputPeerChannel):
+            target_id = peer.channel_id
+            print(f"Channel/community resolved (ID: {target_id})")
+        elif isinstance(peer, InputPeerChat):
+            target_id = peer.chat_id
+            print(f"Group resolved (ID: {target_id})")
+        else:
+            raise ValueError(f"Unknown peer type: {type(peer)}")
+    finally:
+        app.stop()
+
+    return target_id
+
+
+def main():
+    target_user_input = input("Enter TARGET_USER_ID, @username or t.me link: ").strip()
+    posts_limit = int(input("POSTS_LIMIT: "))
+
+    target_user_id = resolve_target_user(target_user_input)
+
+    comments = Comments(API_ID, API_HASH, target_user_id, posts_limit)
+    comments.get_comments()
+
+
+if __name__ == "__main__":
+    main()
