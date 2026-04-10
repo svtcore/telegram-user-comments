@@ -1,87 +1,62 @@
-import datetime
-from pyrogram import Client
-from pyrogram.raw import functions, types as raw_types
-import time
-import random
-from pyrogram.errors import BadRequest, FloodWait
-from datetime import datetime
-import codecs
 import math
+import random
+import time
+from datetime import datetime
+
+from pyrogram import Client
+from pyrogram.errors import BadRequest, FloodWait
+from pyrogram.raw import functions
 
 
 class Comments:
+    """Parses user comments under Telegram channel posts and exports to CSV"""
 
-    API_ID = None
-    API_HASH = None
-    TARGET_USER_ID = None
-    POSTS_LIMIT = None
-    channels = []
-
-    '''
-    Load data from .env file
-    '''
     def __init__(self, api_id, api_hash, target_user_id, posts_limit):
-        self.API_ID = api_id
-        self.API_HASH = api_hash
-        self.TARGET_USER_ID = target_user_id
-        self.POSTS_LIMIT = posts_limit
+        """Initialize with Telegram API credentials and search parameters"""
+        self._api_id = api_id
+        self._api_hash = api_hash
+        self._target_user_id = target_user_id
+        self._posts_limit = posts_limit
+        self._channels = []
+        self._app = None
 
-    '''
-    Authorize and create account.session file
-    '''
-    def auth(self):
-        try:
-            self.app = Client("account", api_id=self.API_ID,
-                              api_hash=self.API_HASH)
-            self.app.start()
-        except NameError:
-            print(NameError)
-    '''
-    Finish session
-    '''
-    def logout(self):
-        try:
-            self.app.stop()
-        except NameError:
-            print(NameError)
+    def _auth(self):
+        """Authorize and create account.session file"""
+        self._app = Client("account", api_id=self._api_id,
+                           api_hash=self._api_hash)
+        self._app.start()
 
-    '''
-    Load channel names from file channels.txt and put them to array
-    '''
-    def loadChannels(self):
-        try:
-            text_file = open("channels.txt", "r")
-            lines = text_file.readlines()
-            for i in range(0, len(lines)):
-                self.channels.append(lines[i].strip())
-            text_file.close()
-        except NameError:
-            print(NameError)
+    def _logout(self):
+        """Finish session"""
+        if self._app:
+            self._app.stop()
 
-    '''
-    Write data in csv row format into file export.csv
-    '''
-    def writeToFile(self, data):
+    def _load_channels(self):
+        """Load channel links from channels.txt into a list"""
         try:
-            file = codecs.open("export_" + str(self.TARGET_USER_ID) + ".csv", "a", encoding='utf-8')
-            file.write(data)
-            file.close()
-        except NameError:
-            print(NameError)
-    
-    '''
-    Detect media type and return label or link
-    '''
-    def getMediaInfo(self, message):
+            with open("channels.txt", "r") as f:
+                self._channels = [line.strip() for line in f if line.strip()]
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                "channels.txt not found. Create the file and add at least one channel link"
+            )
+
+    def _write_to_file(self, data):
+        """Append CSV-formatted data to an export file"""
+        with open(f"export_{self._target_user_id}.csv", "a", encoding="utf-8") as f:
+            f.write(data)
+
+    def _get_media_info(self, message):
+        """Detect media type and return a label or link"""
         media = message.media
         if media is None:
             return "[Empty]"
-        
+
         type_name = type(media).__name__
-        
+
         if type_name == "MessageMediaPhoto":
             return "[Image]"
-        
+
         if type_name == "MessageMediaDocument":
             doc = media.document
             attrs = {type(a).__name__: a for a in getattr(doc, 'attributes', [])}
@@ -99,33 +74,33 @@ class Comments:
             if mime.startswith('image/'):
                 return "[Image]"
             return f"[File: {mime}]" if mime else "[Document]"
-        
+
         if type_name == "MessageMediaWebPage":
             webpage = media.webpage
             url = getattr(webpage, 'url', None)
             return url if url else "[WebPage]"
-        
+
         if type_name == "MessageMediaGeo":
             geo = media.geo
             if hasattr(geo, 'lat') and hasattr(geo, 'long'):
                 return f"https://maps.google.com/?q={geo.lat},{geo.long}"
             return "[Location]"
-        
+
         if type_name == "MessageMediaGeoLive":
             return "[LiveLocation]"
-        
+
         if type_name == "MessageMediaContact":
             return f"[Contact: {media.first_name} {media.last_name}]"
-        
+
         if type_name == "MessageMediaPoll":
             return "[Poll]"
-        
+
         if type_name == "MessageMediaDice":
             return f"[Dice: {media.emoticon}]"
-        
+
         if type_name == "MessageMediaUnsupported":
             return "[Unsupported]"
-        
+
         # Fallback for types that may not be in this Pyrogram version
         known_types = {
             "MessageMediaStory": "[Story]",
@@ -135,155 +110,129 @@ class Comments:
         }
         return known_types.get(type_name, f"[{type_name}]")
 
-    '''
-    Get data about comments and related with it users
-    '''
-    def getReplies(self, channel_id, channel_message_id, offset):
-        try:
-            channel_peer = self.app.resolve_peer(channel_id)
-            result = self.app.invoke(
-                functions.messages.GetReplies(
-                    peer=channel_peer,
-                    msg_id=channel_message_id,
-                    offset_id=0,
-                    offset_date=0,
-                    add_offset=offset,
-                    limit=100,
-                    max_id=9999999,
-                    min_id=1,
-                    hash=random.randint(100000000, 999999999))
-            )
-            return result
-        except NameError:
-            print(NameError)
+    def _get_replies(self, channel_id, channel_message_id, offset):
+        """Fetch comment replies for a specific channel post"""
+        channel_peer = self._app.resolve_peer(channel_id)
+        return self._app.invoke(
+            functions.messages.GetReplies(
+                peer=channel_peer,
+                msg_id=channel_message_id,
+                offset_id=0,
+                offset_date=0,
+                add_offset=offset,
+                limit=100,
+                max_id=9999999,
+                min_id=1,
+                hash=random.randint(100000000, 999999999))
+        )
 
-    '''
-    Iterate message part, check if comment from target user then concatenate it with other comment data
-    Processing only text messages
-    '''
-    def formatResultText(self, result, channel_link, channel_title, channel_username, channel_message_id, channel_private_status):
-        try:
-            result_text = ""
-            for j in range(0, len(result.messages)):
-                found = False
-                # convert unix date to str format
-                str_date = datetime.fromtimestamp(result.messages[j].date).strftime('%d-%m-%Y - %H:%M:%S')
-                #check if message sent from user
-                if hasattr(result.messages[j].from_id, 'user_id'):
-                    # check if comment from target user
-                    if str(self.TARGET_USER_ID) == str(result.messages[j].from_id.user_id):
-                        found = True
-                #case when message sent from channel or community
-                elif hasattr(result.messages[j].from_id, 'channel_id'):
-                    # raw API always uses positive channel_id, normalize target too
-                    if str(abs(self.TARGET_USER_ID)) == str(result.messages[j].from_id.channel_id):
-                        found = True
-                if (found):
-                    if str(result.messages[j].message).strip() != "":
-                        user_message = result.messages[j].message
-                        user_message = user_message.replace('\n', '\\n')
-                        user_message = user_message.replace('\r', '\\r')
-                        user_message = user_message.replace('\t', '\\t')
-                        user_message = user_message.replace('"', '""')
-                    else:
-                        try:
-                            user_message = self.getMediaInfo(result.messages[j])
-                        except Exception as e:
-                            user_message = "[UNKNOWN]"
-                            print(f"Could not detect media type: {e}")
-                    if (channel_private_status):
-                        result_text = (result_text + str(str_date) + ',' + str(channel_title) + ',' + str(channel_link) + ',' + '"'+str(user_message).strip(
-                        ) + '"'+','+'https://t.me/c/' + str(result.messages[j].peer_id.channel_id) + '/' + str(result.messages[j].id) + '?thread=' + str(result.messages[j].reply_to.reply_to_msg_id)).strip() + '\n'
-                    else:
-                        result_text = (result_text + str(str_date) + ',' + str(channel_title) + ',' + str(channel_username) + ',' + '"'+str(user_message).strip(
-                        ) + '"'+','+'https://t.me/' + str(channel_username) + '/' + str(channel_message_id) + '?comment=' + str(result.messages[j].id)).strip() + '\n'
-            if result_text.strip() == "":
-                return None
-            else:
-                return result_text
-        except NameError:
-            return NameError
+    def _format_result_text(self, result, channel_link, channel_title,
+                            channel_username, channel_message_id, channel_private_status):
+        """Filter comments from the target user and format them as CSV rows"""
+        result_text = ""
+        for msg in result.messages:
+            found = False
+            # Convert unix date to string format
+            str_date = datetime.fromtimestamp(msg.date).strftime('%d-%m-%Y - %H:%M:%S')
+            # Check if message sent from user
+            if hasattr(msg.from_id, 'user_id'):
+                if str(self._target_user_id) == str(msg.from_id.user_id):
+                    found = True
+            # Case when message sent from channel or community
+            elif hasattr(msg.from_id, 'channel_id'):
+                # Raw API always uses positive channel_id, normalize target too
+                if str(abs(self._target_user_id)) == str(msg.from_id.channel_id):
+                    found = True
 
-    '''
-    Check channel state private or public
-    '''
-    def checkPrivateChannel(self, channel_id):
-        try:
-            chat = self.app.get_chat(channel_id)
-            #if channel has username then it's public
-            if chat.username:
-                return False
-            else:
-                return True
-        except NameError:
-            print(NameError)
-
-    '''
-    Get channel id based on link
-    '''
-    def getChannelId(self, channel_link):
-        try:
-            #private channel case
-            if (channel_link.startswith("https://t.me/+")) or channel_link.startswith("http://t.me/+") or channel_link.startswith("t.me/+"):
-                chat = self.app.get_chat(channel_link)
-            else:
-                #public channel, cut only username
-                username = channel_link.split("/")[-1]
-                chat = self.app.get_chat(username)
-            chat_id = chat.id
-            return chat_id
-        except NameError:
-            print(NameError)
-
-    '''
-    Main methods call methods for work, get basic data for work, process it and write to file
-    '''
-    def getComments(self):
-        try:
-            self.loadChannels()
-            self.auth()
-            for channel in self.channels:
-                channel_general_id = self.getChannelId(channel)
-                channel_private_status = self.checkPrivateChannel(channel_general_id)
-                target_message_history = list(self.app.get_chat_history(
-                    channel_general_id, limit=self.POSTS_LIMIT))
-                for i in range(0, len(target_message_history)):
+            if found:
+                if str(msg.message).strip():
+                    user_message = msg.message
+                    user_message = user_message.replace('\n', '\\n')
+                    user_message = user_message.replace('\r', '\\r')
+                    user_message = user_message.replace('\t', '\\t')
+                    user_message = user_message.replace('"', '""')
+                else:
                     try:
-                        channel_id = target_message_history[i].sender_chat.id
-                        channel_title = target_message_history[i].sender_chat.title
-                        channel_username = target_message_history[i].sender_chat.username
-                        channel_message_id = target_message_history[i].id
-                        if (channel_username == None):
-                            channel_username = channel_title
-                        print("Processing " + "[" + str(int(i + 1)) + "/" + str(len(target_message_history)) + "] " + str(channel_username) + "/" + str(channel_message_id))
-                        # Getting data about comments in post
-                        result = self.getReplies(channel_id, channel_message_id, 0)
+                        user_message = self._get_media_info(msg)
+                    except Exception as e:
+                        user_message = "[UNKNOWN]"
+                        print(f"Could not detect media type: {e}")
+
+                if channel_private_status:
+                    link = (f"https://t.me/c/{msg.peer_id.channel_id}"
+                            f"/{msg.id}?thread={msg.reply_to.reply_to_msg_id}")
+                    result_text += (f"{str_date},{channel_title},{channel_link},"
+                                    f'"{user_message.strip()}",{link}\n')
+                else:
+                    link = (f"https://t.me/{channel_username}"
+                            f"/{channel_message_id}?comment={msg.id}")
+                    result_text += (f"{str_date},{channel_title},{channel_username},"
+                                    f'"{user_message.strip()}",{link}\n')
+
+        return result_text if result_text.strip() else None
+
+    def _check_private_channel(self, channel_id):
+        """Check whether a channel is private or public."""
+        chat = self._app.get_chat(channel_id)
+        # If channel has a username then it's public
+        return not bool(chat.username)
+
+    def _get_channel_id(self, channel_link):
+        """Resolve a channel link to its numeric ID"""
+        # Private channel case
+        if any(channel_link.startswith(prefix) for prefix in
+               ("https://t.me/+", "http://t.me/+", "t.me/+")):
+            chat = self._app.get_chat(channel_link)
+        else:
+            # Public channel, extract only the username
+            username = channel_link.split("/")[-1]
+            chat = self._app.get_chat(username)
+        return chat.id
+
+    def get_comments(self):
+        """Main entry point: load channels, fetch comments, and export to file"""
+        self._load_channels()
+        self._auth()
+        try:
+            for channel in self._channels:
+                channel_general_id = self._get_channel_id(channel)
+                channel_private_status = self._check_private_channel(channel_general_id)
+                target_message_history = list(self._app.get_chat_history(
+                    channel_general_id, limit=self._posts_limit))
+
+                for i, post in enumerate(target_message_history):
+                    try:
+                        channel_id = post.sender_chat.id
+                        channel_title = post.sender_chat.title
+                        channel_username = post.sender_chat.username or channel_title
+                        channel_message_id = post.id
+
+                        print(f"Processing [{i + 1}/{len(target_message_history)}] "
+                              f"{channel_username}/{channel_message_id}")
+
+                        # GetReplies returns up to 100 messages per query,
+                        # loop with increasing offset to get all comments
+                        result = self._get_replies(channel_id, channel_message_id, 0)
                         offset = 0
-                        # According to GetRelipes method return up to 100 messages per query, 
-                        # then run it through loop and increase offset on 100 to get all comments
-                        for k in range(0, math.ceil(int(result.count)/100)):
-                            result = self.getReplies(channel_id, channel_message_id, offset)
-                            offset = offset + 100
-                            result_text = self.formatResultText(result, channel, channel_title, channel_username, channel_message_id, channel_private_status)
-                            if (result_text != None):
-                                self.writeToFile(result_text)
+                        for _ in range(math.ceil(int(result.count) / 100)):
+                            result = self._get_replies(channel_id, channel_message_id, offset)
+                            offset += 100
+                            result_text = self._format_result_text(
+                                result, channel, channel_title, channel_username,
+                                channel_message_id, channel_private_status)
+                            if result_text is not None:
+                                self._write_to_file(result_text)
                             time.sleep(2)
-                    except BadRequest as e:  # if post deleted
+                    except BadRequest:
                         time.sleep(0.5)
-                        pass
-                    except AttributeError as e:  # if no comments under post
+                    except AttributeError:
                         time.sleep(0.5)
-                        pass
-                    except IndexError as e:
+                    except IndexError:
                         time.sleep(0.5)
-                        pass
-                    except FloodWait as e:
+                    except FloodWait:
                         print("Too fast. Sleeping 60 sec")
                         time.sleep(60)
-                    except FileNotFoundError as e:
+                    except FileNotFoundError:
                         pass
-                    except NameError as e:
-                        print(NameError)
-            self.logout()
-        except NameError:
-            print(NameError)
+        finally:
+            self._logout()
